@@ -1,0 +1,48 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_updateAvailable)
+{
+    <div class="update-banner">
+        <i class="fas fa-rocket me-1"></i>
+        <span>A new version is available.</span>
+        <button class="btn btn-sm btn-light ms-1" @onclick="ReloadAsync">Reload</button>
+        <button class="btn btn-sm btn-link text-white p-0 ms-2" @onclick="Dismiss" title="Dismiss">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </div>
+}
+
+@code {
+    private bool _updateAvailable;
+    private DotNetObjectReference<UpdatePrompt>? _selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("epubInterop.registerSwUpdateListener", _selfRef);
+        }
+    }
+
+    [JSInvokable]
+    public void OnUpdateAvailable()
+    {
+        _updateAvailable = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadAsync()
+    {
+        await JS.InvokeVoidAsync("epubInterop.skipWaitingAndReload");
+    }
+
+    private void Dismiss() => _updateAvailable = false;
+
+    public ValueTask DisposeAsync()
+    {
+        _selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

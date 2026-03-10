@@ -1,0 +1,53 @@
+@using Epubinator.Client.Models
+@using Epubinator.Client.Services
+@inject EpubLibraryService LibraryService
+@inject IJSRuntime JS
+
+<!-- Bootstrap Offcanvas Sidebar -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mainSidebar" aria-labelledby="mainSidebarLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title mb-0 fw-bold" id="mainSidebarLabel">
+            <i class="fas fa-book-open me-2" style="color:var(--link)"></i>Epubinator
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <div class="offcanvas-body p-0 d-flex flex-column">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs px-2 pt-2" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="library-tab" data-bs-toggle="tab"
+                        data-bs-target="#library-pane" type="button" role="tab" aria-selected="true">
+                    <i class="fas fa-book me-1"></i>Library
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="settings-tab" data-bs-toggle="tab"
+                        data-bs-target="#settings-pane" type="button" role="tab" aria-selected="false">
+                    <i class="fas fa-sliders me-1"></i>Settings
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab content -->
+        <div class="tab-content flex-grow-1 overflow-auto">
+            <div class="tab-pane fade show active h-100" id="library-pane" role="tabpanel">
+                <LibraryPanel CurrentBookId="@CurrentBookId" OnBookSelected="@HandleBookSelected" />
+            </div>
+            <div class="tab-pane fade" id="settings-pane" role="tabpanel">
+                <SettingsPanel />
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? CurrentBookId { get; set; }
+    [Parameter] public EventCallback<BookMetadata> OnBookSelected { get; set; }
+
+    private async Task HandleBookSelected(BookMetadata book)
+    {
+        await JS.InvokeVoidAsync("epubInterop.closeOffcanvas", "mainSidebar");
+        await OnBookSelected.InvokeAsync(book);
+    }
+}

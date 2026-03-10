@@ -1,0 +1,145 @@
+@using Epubinator.Client.Models
+@using Epubinator.Client.Services
+@inject EpubReaderService ReaderService
+@inject ReadingProgressService ProgressService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<!-- Reading scroll container -->
+<div id="reader-scroll-container" class="reader-scroll-container">
+
+    @if (_isLoading)
+    {
+        <!-- Skeleton loader while chapter loads -->
+        <div class="reader-skeleton">
+            <div class="skeleton-line w-60 mb-4" style="height:1.8em"></div>
+            <div class="skeleton-line w-100"></div>
+            <div class="skeleton-line w-100"></div>
+            <div class="skeleton-line w-80"></div>
+            <div class="skeleton-line w-100"></div>
+            <div class="skeleton-line w-60"></div>
+            <div class="skeleton-line w-100" style="margin-top:1.5em"></div>
+            <div class="skeleton-line w-100"></div>
+            <div class="skeleton-line w-80"></div>
+        </div>
+    }
+    else
+    {
+        <div class="reader-content">
+            @((MarkupString)_chapterHtml)
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? BookId { get; set; }
+    [Parameter] public int InitialChapterIndex { get; set; }
+    [Parameter] public double InitialScrollPercent { get; set; }
+
+    // Notify parent of current chapter for the toolbar display
+    [Parameter] public EventCallback<(int Current, int Total)> OnChapterChanged { get; set; }
+
+    private int _chapterIndex;
+    private string _chapterHtml = string.Empty;
+    private bool _isLoading = true;
+    private bool _restoreScroll;
+    private double _pendingScrollPercent;
+
+    private PeriodicTimer? _scrollTimer;
+    private CancellationTokenSource? _scrollCts;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload when book changes
+        _chapterIndex = InitialChapterIndex;
+        _pendingScrollPercent = InitialScrollPercent;
+        _restoreScroll = InitialScrollPercent > 0;
+        await LoadChapterAsync(_chapterIndex);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _scrollCts = new CancellationTokenSource();
+            _scrollTimer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+            _ = SaveScrollLoopAsync(_scrollCts.Token);
+        }
+
+        if (_restoreScroll)
+        {
+            _restoreScroll = false;
+            await JS.InvokeVoidAsync("epubInterop.scrollToPercent", _pendingScrollPercent);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _scrollCts?.Cancel();
+        _scrollTimer?.Dispose();
+    }
+
+    // ── Chapter navigation ────────────────────────────────────────────────────
+
+    public async Task GoToPreviousChapter()
+    {
+        if (_chapterIndex <= 0) return;
+        _chapterIndex--;
+        _pendingScrollPercent = 0;
+        _restoreScroll = false;
+        await LoadChapterAsync(_chapterIndex);
+    }
+
+    public async Task GoToNextChapter()
+    {
+        if (_chapterIndex >= ReaderService.ChapterCount - 1) return;
+        _chapterIndex++;
+        _pendingScrollPercent = 0;
+        _restoreScroll = false;
+        await LoadChapterAsync(_chapterIndex);
+        // Scroll to top of new chapter
+        await JS.InvokeVoidAsync("epubInterop.scrollToPercent", 0.0);
+    }
+
+    private async Task LoadChapterAsync(int index)
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        _chapterHtml = await ReaderService.GetChapterHtmlAsync(index);
+
+        _isLoading = false;
+        StateHasChanged();
+
+        await OnChapterChanged.InvokeAsync((_chapterIndex + 1, ReaderService.ChapterCount));
+    }
+
+    // ── Scroll persistence ────────────────────────────────────────────────────
+
+    private async Task SaveScrollLoopAsync(CancellationToken ct)
+    {
+        while (_scrollTimer is not null)
+        {
+            try
+            {
+                await _scrollTimer.WaitForNextTickAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            if (!string.IsNullOrEmpty(BookId) && !_isLoading)
+            {
+                try
+                {
+                    var pct = await JS.InvokeAsync<double>("epubInterop.getScrollPercent");
+                    await ProgressService.SaveAsync(BookId, _chapterIndex, pct);
+                }
+                catch { /* ignore during disposal */ }
+            }
+        }
+    }
+}

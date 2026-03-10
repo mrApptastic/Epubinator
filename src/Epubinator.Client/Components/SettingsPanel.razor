@@ -1,0 +1,104 @@
+@using Epubinator.Client.Models
+@using Epubinator.Client.Services
+@inject ThemeService ThemeService
+@implements IDisposable
+
+<div class="settings-panel">
+
+    <!-- Theme -->
+    <div class="settings-section">
+        <div class="settings-label">Theme</div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm @(ThemeService.Settings.Theme == "light" ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick='() => SetTheme("light")'>
+                <i class="fas fa-sun me-1"></i>Light
+            </button>
+            <button class="btn btn-sm @(ThemeService.Settings.Theme == "dark" ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick='() => SetTheme("dark")'>
+                <i class="fas fa-moon me-1"></i>Dark
+            </button>
+        </div>
+    </div>
+
+    <!-- Font family -->
+    <div class="settings-section">
+        <div class="settings-label">Font</div>
+        <select class="form-select form-select-sm" value="@ThemeService.Settings.FontFamily"
+                @onchange="SetFont">
+            <option value="system-ui, -apple-system, sans-serif">System default</option>
+            <option value="Georgia, 'Times New Roman', serif">Serif (Georgia)</option>
+            <option value="OpenDyslexic, sans-serif">OpenDyslexic</option>
+            <option value="'Courier New', Courier, monospace">Monospace</option>
+        </select>
+    </div>
+
+    <!-- Font size -->
+    <div class="settings-section">
+        <div class="settings-label">
+            Font size
+            <span class="ms-2 fw-normal text-muted">@ThemeService.Settings.FontSize px</span>
+        </div>
+        <input type="range" class="form-range" min="12" max="28" step="1"
+               value="@ThemeService.Settings.FontSize"
+               @onchange="SetFontSize" />
+        <div class="d-flex justify-content-between small text-muted">
+            <span>Small</span>
+            <span>Large</span>
+        </div>
+    </div>
+
+    <!-- Reading width -->
+    <div class="settings-section">
+        <div class="settings-label">Reading width</div>
+        <small class="text-muted">Max 70 characters per line for comfortable reading.</small>
+    </div>
+
+    <!-- iOS storage notice -->
+    <div class="settings-section">
+        <div class="alert alert-warning py-2 px-3 small mb-0">
+            <i class="fas fa-triangle-exclamation me-1"></i>
+            <strong>iOS note:</strong> Safari may clear your library after 7 days of inactivity.
+        </div>
+    </div>
+
+</div>
+
+@code {
+    protected override void OnInitialized()
+        => ThemeService.OnSettingsChanged += HandleSettingsChanged;
+
+    public void Dispose()
+        => ThemeService.OnSettingsChanged -= HandleSettingsChanged;
+
+    private void HandleSettingsChanged()
+        => InvokeAsync(StateHasChanged);
+
+    private async Task SetTheme(string theme)
+    {
+        var s = Clone();
+        s.Theme = theme;
+        await ThemeService.UpdateAsync(s);
+    }
+
+    private async Task SetFont(ChangeEventArgs e)
+    {
+        var s = Clone();
+        s.FontFamily = e.Value?.ToString() ?? s.FontFamily;
+        await ThemeService.UpdateAsync(s);
+    }
+
+    private async Task SetFontSize(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var size)) return;
+        var s = Clone();
+        s.FontSize = size;
+        await ThemeService.UpdateAsync(s);
+    }
+
+    private ReaderSettings Clone() => new()
+    {
+        Theme = ThemeService.Settings.Theme,
+        FontFamily = ThemeService.Settings.FontFamily,
+        FontSize = ThemeService.Settings.FontSize
+    };
+}

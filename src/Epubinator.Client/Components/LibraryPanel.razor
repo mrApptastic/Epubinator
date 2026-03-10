@@ -1,0 +1,147 @@
+@using Epubinator.Client.Models
+@using Epubinator.Client.Services
+@inject EpubLibraryService LibraryService
+@implements IDisposable
+
+<!-- Upload area -->
+<div class="p-2">
+    <label class="upload-zone position-relative w-100" title="Click to choose an epub file">
+        @if (_isUploading)
+        {
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            <span>Adding book...</span>
+        }
+        else
+        {
+            <i class="fas fa-plus-circle fa-lg" style="color:var(--link)"></i>
+            <span class="fw-semibold">Add epub</span>
+            <small class="text-muted">click to browse</small>
+        }
+        <InputFile accept=".epub" OnChange="HandleFileSelected" disabled="@_isUploading"
+                   class="position-absolute top-0 start-0 w-100 h-100 opacity-0" style="cursor:pointer" />
+    </label>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger py-1 px-2 mt-1 small">@_errorMessage</div>
+    }
+</div>
+
+<!-- Book list -->
+@if (LibraryService.Books.Count == 0 && !_isUploading)
+{
+    <div class="text-center text-muted p-4">
+        <i class="fas fa-inbox fa-2x mb-2 d-block opacity-25"></i>
+        Your library is empty.<br />Add an epub to get started.
+    </div>
+}
+else
+{
+    <div class="book-list">
+        @foreach (var book in LibraryService.Books)
+        {
+            <div class="book-item @(book.Id == CurrentBookId ? "active" : "")"
+                 @onclick="() => SelectBook(book)" role="button" tabindex="0"
+                 @onkeydown="@(e => { if (e.Key == "Enter") SelectBook(book); })">
+
+                @if (!string.IsNullOrEmpty(book.CoverBase64))
+                {
+                    <img src="@book.CoverBase64" alt="Cover" class="book-cover" />
+                }
+                else
+                {
+                    <div class="book-cover-placeholder">
+                        <i class="fas fa-book"></i>
+                    </div>
+                }
+
+                <div class="book-info">
+                    <div class="book-title">@book.Title</div>
+                    <div class="book-author">@book.Author</div>
+                    <div class="book-meta">@book.ChapterCount chapters · @book.FileSizeDisplay</div>
+                </div>
+
+                <button class="btn btn-link delete-btn p-0" title="Remove book"
+                        @onclick:stopPropagation="true"
+                        @onclick="() => ConfirmDelete(book)">
+                    <i class="fas fa-trash-alt text-danger"></i>
+                </button>
+            </div>
+        }
+    </div>
+}
+
+<!-- Delete confirmation modal -->
+@if (_bookToDelete is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="background:var(--bg-secondary);color:var(--text)">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="modal-title">Remove book?</h6>
+                </div>
+                <div class="modal-body py-2 small">
+                    <strong>@_bookToDelete.Title</strong> will be removed from your library.
+                    This cannot be undone.
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button class="btn btn-sm btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-sm btn-danger" @onclick="ConfirmDeleteAsync">Remove</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? CurrentBookId { get; set; }
+    [Parameter] public EventCallback<BookMetadata> OnBookSelected { get; set; }
+
+    private bool _isUploading;
+    private string? _errorMessage;
+    private BookMetadata? _bookToDelete;
+
+    protected override void OnInitialized()
+        => LibraryService.OnBooksChanged += HandleBooksChanged;
+
+    public void Dispose()
+        => LibraryService.OnBooksChanged -= HandleBooksChanged;
+
+    private void HandleBooksChanged()
+        => InvokeAsync(StateHasChanged);
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _errorMessage = null;
+        _isUploading = true;
+        StateHasChanged();
+        try
+        {
+            await LibraryService.AddBookAsync(e.File);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to add book: {ex.Message}";
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private void SelectBook(BookMetadata book)
+        => OnBookSelected.InvokeAsync(book);
+
+    private void ConfirmDelete(BookMetadata book)
+        => _bookToDelete = book;
+
+    private void CancelDelete()
+        => _bookToDelete = null;
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_bookToDelete is null) return;
+        await LibraryService.DeleteBookAsync(_bookToDelete.Id);
+        _bookToDelete = null;
+    }
+}
