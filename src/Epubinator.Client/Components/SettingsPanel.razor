@@ -53,6 +53,25 @@
         <small class="text-muted">Max 70 characters per line for comfortable reading.</small>
     </div>
 
+    <!-- Orientation lock -->
+    <div class="settings-section">
+        <div class="settings-label">Screen orientation</div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm @(ThemeService.Settings.OrientationLock == "none" ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick='() => SetOrientationLock("none")'>
+                <i class="fas fa-rotate me-1"></i>Auto
+            </button>
+            <button class="btn btn-sm @(ThemeService.Settings.OrientationLock == "portrait" ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick='() => SetOrientationLock("portrait")'>
+                <i class="fas fa-mobile-screen me-1"></i>Portrait
+            </button>
+            <button class="btn btn-sm @(ThemeService.Settings.OrientationLock == "landscape" ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick='() => SetOrientationLock("landscape")'>
+                <i class="fas fa-mobile-screen fa-rotate-90 me-1"></i>Landscape
+            </button>
+        </div>
+    </div>
+
     <!-- iOS storage notice -->
     <div class="settings-section">
         <div class="alert alert-warning py-2 px-3 small mb-0">
@@ -95,10 +114,18 @@
         await ThemeService.UpdateAsync(s);
     }
 
+    private async Task SetOrientationLock(string orientation)
+    {
+        var s = Clone();
+        s.OrientationLock = orientation;
+        await ThemeService.UpdateAsync(s);
+    }
+
     private ReaderSettings Clone() => new()
     {
         Theme = ThemeService.Settings.Theme,
         FontFamily = ThemeService.Settings.FontFamily,
-        FontSize = ThemeService.Settings.FontSize
+        FontSize = ThemeService.Settings.FontSize,
+        OrientationLock = ThemeService.Settings.OrientationLock
     };
 }

@@ -49,7 +49,7 @@ public class ThemeService
         OnSettingsChanged?.Invoke();
     }
 
-    /// <summary>Pushes current settings to the document as CSS custom properties.</summary>
+    /// <summary>Pushes current settings to the document as CSS custom properties and applies orientation lock.</summary>
     public async Task ApplyAsync()
     {
         await _js.InvokeVoidAsync(
@@ -57,5 +57,6 @@ public class ThemeService
             Settings.Theme,
             Settings.FontFamily,
             Settings.FontSize);
+        await _js.InvokeVoidAsync("epubInterop.lockOrientation", Settings.OrientationLock);
     }
 }
