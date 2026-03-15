@@ -156,6 +156,23 @@ window.epubInterop = (function () {
             });
         },
 
+        // ── Orientation lock ──────────────────────────────────────────────────
+
+        lockOrientation: async function (orientation) {
+            if (!screen.orientation || typeof screen.orientation.lock !== 'function') return;
+            if (orientation === 'none') {
+                try { screen.orientation.unlock(); } catch (e) { console.debug('Orientation unlock not supported:', e); }
+                return;
+            }
+            // Map to primary variants for broader browser compatibility
+            const lockType = orientation === 'portrait' ? 'portrait-primary'
+                           : orientation === 'landscape' ? 'landscape-primary'
+                           : orientation;
+            try {
+                await screen.orientation.lock(lockType);
+            } catch (e) { console.debug('Orientation lock not supported:', e); }
+        },
+
         // ── Bootstrap Offcanvas ───────────────────────────────────────────────
 
         closeOffcanvas: function (id) {
