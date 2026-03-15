@@ -1,0 +1,75 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_installAvailable)
+{
+    <div class="install-banner">
+        <i class="fas fa-download me-1"></i>
+        <span>Install Epubinator for offline use.</span>
+        <button class="btn btn-sm btn-light ms-1" @onclick="InstallAsync">Install</button>
+        <button class="btn btn-sm btn-link text-white p-0 ms-2" @onclick="DismissAsync" title="Dismiss">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </div>
+}
+
+@code {
+    private bool _installAvailable;
+    private DotNetObjectReference<InstallPrompt>? _selfRef;
+
+    private const string DismissedKey = "epubinator-install-dismissed";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Don't show the banner if the user previously dismissed it
+            var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", DismissedKey);
+            if (dismissed == "1") return;
+
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("epubInterop.registerInstallPromptListener", _selfRef);
+        }
+    }
+
+    [JSInvokable]
+    public void OnInstallAvailable()
+    {
+        _installAvailable = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnAppInstalled()
+    {
+        _installAvailable = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InstallAsync()
+    {
+        _installAvailable = false;
+        try
+        {
+            await JS.InvokeAsync<bool>("epubInterop.showInstallPrompt");
+        }
+        catch
+        {
+            // Restore the banner if the prompt couldn't be shown
+            _installAvailable = true;
+        }
+    }
+
+    private async Task DismissAsync()
+    {
+        _installAvailable = false;
+        // Persist the dismissal so the banner doesn't reappear on every load
+        await JS.InvokeVoidAsync("localStorage.setItem", DismissedKey, "1");
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

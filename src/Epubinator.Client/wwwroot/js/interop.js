@@ -1,11 +1,30 @@
 /**
  * Epubinator JS Interop Layer
- * Handles: IndexedDB via Dexie, CSS theming, scroll tracking, PWA SW update prompts.
+ * Handles: IndexedDB via Dexie, CSS theming, scroll tracking, PWA SW update/install prompts.
  */
 window.epubInterop = (function () {
     'use strict';
 
     let db = null;
+
+    // Capture the beforeinstallprompt event as early as possible so it can be
+    // triggered later when the user clicks the install button.
+    let _installPromptEvent = null;
+    let _installDotNetRef   = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        _installPromptEvent = e;
+        if (_installDotNetRef) {
+            _installDotNetRef.invokeMethodAsync('OnInstallAvailable');
+        }
+    });
+    // If the app is installed, hide any install UI
+    window.addEventListener('appinstalled', function () {
+        _installPromptEvent = null;
+        if (_installDotNetRef) {
+            _installDotNetRef.invokeMethodAsync('OnAppInstalled');
+        }
+    });
 
     function initDb() {
         if (db) return;
@@ -83,6 +102,12 @@ window.epubInterop = (function () {
         registerSwUpdateListener: function (dotNetRef) {
             if (!('serviceWorker' in navigator)) return;
             navigator.serviceWorker.ready.then(function (reg) {
+                // If a service worker is already waiting (e.g. the user left the
+                // tab open while an update installed), notify immediately.
+                if (reg.waiting && navigator.serviceWorker.controller) {
+                    dotNetRef.invokeMethodAsync('OnUpdateAvailable');
+                }
+
                 reg.addEventListener('updatefound', function () {
                     const newWorker = reg.installing;
                     if (!newWorker) return;
@@ -94,6 +119,24 @@ window.epubInterop = (function () {
                     });
                 });
             });
+        },
+
+        // ── PWA Install prompt ────────────────────────────────────────────────
+
+        registerInstallPromptListener: function (dotNetRef) {
+            _installDotNetRef = dotNetRef;
+            // If beforeinstallprompt already fired before Blazor was ready, notify now.
+            if (_installPromptEvent) {
+                dotNetRef.invokeMethodAsync('OnInstallAvailable');
+            }
+        },
+
+        showInstallPrompt: async function () {
+            if (!_installPromptEvent) return false;
+            await _installPromptEvent.prompt();
+            const choice = await _installPromptEvent.userChoice;
+            _installPromptEvent = null;
+            return choice.outcome === 'accepted';
         },
 
         skipWaitingAndReload: function () {
