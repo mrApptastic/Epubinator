@@ -32,10 +32,36 @@ public class ReadingProgressService
         {
             BookId = bookId,
             ChapterIndex = chapterIndex,
-            ScrollPercent = scrollPercent
+            ScrollPercent = scrollPercent,
+            LastReadAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
         var json = JsonSerializer.Serialize(progress, _json);
         await _js.InvokeVoidAsync("localStorage.setItem", Key(bookId), json);
+    }
+
+    /// <summary>Stamps the current time as LastReadAtMs for a book without changing chapter or scroll.</summary>
+    public async Task TouchAsync(string bookId)
+    {
+        var existing = await GetAsync(bookId);
+        var progress = new ReadingProgress
+        {
+            BookId = bookId,
+            ChapterIndex = existing?.ChapterIndex ?? 0,
+            ScrollPercent = existing?.ScrollPercent ?? 0,
+            LastReadAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+        var json = JsonSerializer.Serialize(progress, _json);
+        await _js.InvokeVoidAsync("localStorage.setItem", Key(bookId), json);
+    }
+
+    /// <summary>Returns a mapping of bookId → LastReadAtMs for the given set of book IDs.</summary>
+    public async Task<Dictionary<string, long>> GetAllLastReadAsync(IEnumerable<string> bookIds)
+    {
+        var ids = bookIds.ToList();
+        var tasks = ids.Select(id => GetAsync(id));
+        var results = await Task.WhenAll(tasks);
+        return ids.Zip(results, (id, progress) => (id, progress))
+                  .ToDictionary(x => x.id, x => x.progress?.LastReadAtMs ?? 0);
     }
 
     public async Task DeleteAsync(string bookId)

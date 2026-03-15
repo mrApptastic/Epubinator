@@ -75,6 +75,36 @@ public class EpubLibraryService
         return meta;
     }
 
+    /// <summary>
+    /// Re-sorts Books so that the most recently read books appear first.
+    /// Books that have never been read are sorted by AddedAtMs (most recently added first).
+    /// Fires <see cref="OnBooksChanged"/> after reordering.
+    /// </summary>
+    public void SortByLastRead(IReadOnlyDictionary<string, long> lastReadTimes)
+    {
+        Books.Sort((a, b) =>
+        {
+            var aTime = lastReadTimes.TryGetValue(a.Id, out var at) ? at : 0;
+            var bTime = lastReadTimes.TryGetValue(b.Id, out var bt) ? bt : 0;
+            if (bTime != aTime) return bTime.CompareTo(aTime);
+            return b.AddedAtMs.CompareTo(a.AddedAtMs);
+        });
+        OnBooksChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Moves the specified book to the front of the <see cref="Books"/> list and fires <see cref="OnBooksChanged"/>.
+    /// Call this whenever a book is opened so the library list stays ordered by last-read.
+    /// </summary>
+    public void MoveToFront(string bookId)
+    {
+        var book = Books.FirstOrDefault(b => b.Id == bookId);
+        if (book is null) return;
+        Books.Remove(book);
+        Books.Insert(0, book);
+        OnBooksChanged?.Invoke();
+    }
+
     /// <summary>Returns the raw epub bytes for the given book id from IndexedDB.</summary>
     public async Task<byte[]?> GetBookBytesAsync(string bookId)
     {

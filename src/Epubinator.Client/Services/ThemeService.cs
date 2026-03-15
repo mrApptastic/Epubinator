@@ -35,6 +35,7 @@ public class ThemeService
         catch { /* use defaults */ }
 
         await ApplyAsync();
+        OnSettingsChanged?.Invoke();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
