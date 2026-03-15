@@ -338,6 +338,25 @@ html, body {
     to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
 }
 
+/* ── Install banner ────────────────────────────── */
+.install-banner {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d6efd;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 10px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    white-space: nowrap;
+    animation: slideUp 0.3s ease;
+}
+
 /* ── Scrollbar (WebKit) ────────────────────────── */
 ::-webkit-scrollbar       { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
